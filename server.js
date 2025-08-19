@@ -31,13 +31,21 @@ app.use(mongoSanitize());            // strips $ and . from keys (NoSQL injectio
 app.use(express.json({ limit: '100kb' })); // avoid huge payloads
 app.use(cookieParser());
 
-// CORS (restrict to your frontend; allow credentials if you use cookie auth)
+
+// Simplified CORS configuration
 app.use(cors({
-  origin: (origin, cb) => {
-    if (!origin) return cb(null, true);
-    return allowedOrigins.includes(origin)
-      ? cb(null, true)
-      : cb(new Error("Not allowed by CORS"));
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    
+    // Log blocked origins for debugging
+    console.log('Blocked origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
