@@ -17,6 +17,12 @@ await connectDB();
 
 const app = express();
 
+const allowedOrigins = [
+  'https://recipe-app-lake-alpha.vercel.app',
+  'http://localhost:3000', // for development
+  'http://localhost:5173'  // for development
+];
+
 // --- Security & parsing hardening ---
 app.disable('x-powered-by');
 app.use(helmet());
@@ -27,26 +33,44 @@ app.use(cookieParser());
 
 // CORS (restrict to your frontend; allow credentials if you use cookie auth)
 app.use(cors({
-  origin: process.env.CLIENT_URL,
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    return allowedOrigins.includes(origin)
+      ? cb(null, true)
+      : cb(new Error("Not allowed by CORS"));
+  },
   credentials: true,
-  methods: ['GET','POST','PATCH','DELETE']
+  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  optionsSuccessStatus: 204
 }));
 
+app.options("*", cors());
 // --- Rate limiting ---
 // Global, reasonable baseline
-app.use(rateLimit({
+const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
-  legacyHeaders: false
-}));
-// Tighter on auth endpoints
-app.use('/api/auth', rateLimit({
+  legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",  // <-- important
+});
+app.use(apiLimiter);
+
+const authLimiter = rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 50,
   standardHeaders: true,
-  legacyHeaders: false
-}));
+  legacyHeaders: false,
+  skip: (req) => req.method === "OPTIONS",  // <-- important
+});
+app.use("/api/auth", authLimiter);
+
+
+app.use((req, _res, next) => {
+  console.log(`[${req.method}] ${req.originalUrl} (Origin: ${req.headers.origin || "n/a"})`);
+  next();
+});
 
 // --- Routes ---
 // Public auth routes (login/register/etc.)
