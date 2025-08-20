@@ -38,25 +38,26 @@ router.post(
       if (user) {
         return res.status(400).json({ message: 'User already exists' });
       }
-
+  
       const hash = await bcrypt.hash(password, 10);
       user = new User({ email, password: hash });
       await user.save();
-
-      const payload = { user: { id: user.id } };
-      const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-      res.cookie('token', token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production', // true on Render
-        sameSite: 'none',       // <-- cross-site
-        partitioned: true,      // <-- CHIPS (third-party allowed, partitioned by top-level site)
-        path: '/',              // good hygiene
-        maxAge: 7 * 24 * 60 * 60 * 1000,
-      });
-      
-
-      res.json({ user: { id: user.id, email: user.email } });
+  
+    const payload = { user: { id: user.id } };
+     const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1h' });
+  
+    res.cookie('token', token, {
+      httpOnly: true,
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
+  
+    res.json({ user: { id: user.id, email: user.email } });
+     return res.status(201).json({
+      message: 'Account created. Please log in.',
+       user: { id: user.id, email: user.email }
+     });
     } catch (err) {
       console.error('[REGISTER]', err);
       res.status(500).send('Server error');
