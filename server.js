@@ -17,12 +17,6 @@ await connectDB();
 
 const app = express();
 
-const allowedOrigins = [
-  'https://recipe-app-lake-alpha.vercel.app',
-  'http://localhost:3000', // for development
-  'http://localhost:5173'  // for development
-];
-
 // --- Security & parsing hardening ---
 app.disable('x-powered-by');
 app.use(helmet());
@@ -31,54 +25,28 @@ app.use(mongoSanitize());            // strips $ and . from keys (NoSQL injectio
 app.use(express.json({ limit: '100kb' })); // avoid huge payloads
 app.use(cookieParser());
 
-
-// Simplified CORS configuration
+// CORS (restrict to your frontend; allow credentials if you use cookie auth)
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      return callback(null, true);
-    }
-    
-    // Log blocked origins for debugging
-    console.log('Blocked origin:', origin);
-    return callback(new Error('Not allowed by CORS'));
-  },
+  origin: process.env.CLIENT_URL,
   credentials: true,
-  methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  optionsSuccessStatus: 204
+  methods: ['GET','POST','PATCH','DELETE']
 }));
 
-app.options("*", cors());
 // --- Rate limiting ---
 // Global, reasonable baseline
-const apiLimiter = rateLimit({
+app.use(rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 300,
   standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.method === "OPTIONS",  // <-- important
-});
-app.use(apiLimiter);
-
-const authLimiter = rateLimit({
+  legacyHeaders: false
+}));
+// Tighter on auth endpoints
+app.use('/api/auth', rateLimit({
   windowMs: 10 * 60 * 1000,
   max: 50,
   standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => req.method === "OPTIONS",  // <-- important
-});
-app.use("/api/auth", authLimiter);
-
-
-app.use((req, _res, next) => {
-  console.log(`[${req.method}] ${req.originalUrl} (Origin: ${req.headers.origin || "n/a"})`);
-  next();
-});
+  legacyHeaders: false
+}));
 
 // --- Routes ---
 // Public auth routes (login/register/etc.)
